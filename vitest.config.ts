@@ -18,6 +18,7 @@ export default defineConfig({
       exclude: [
         "src/**/*.d.ts",
         "src/lib/db/migrations/**",
+        "src/lib/db/nordic-migrations/**",
         "src/lib/db/index.ts",
         "src/components/ui/**",
       ],

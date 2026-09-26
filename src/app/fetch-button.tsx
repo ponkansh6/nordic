@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface FetchButtonProps {
   cooldownUntil: string | null;
+}
+
+interface FetchButtonStateProps {
+  initialCooldownUntil: string | null;
 }
 
 function formatRemaining(milliseconds: number): string {
@@ -16,22 +20,31 @@ function formatRemaining(milliseconds: number): string {
 }
 
 export default function FetchButton({ cooldownUntil: initialCooldownUntil }: FetchButtonProps) {
+  return (
+    <FetchButtonState
+      key={initialCooldownUntil ?? "no-cooldown"}
+      initialCooldownUntil={initialCooldownUntil}
+    />
+  );
+}
+
+function FetchButtonState({ initialCooldownUntil }: FetchButtonStateProps) {
   const router = useRouter();
   const [isRefreshing, setRefreshing] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState(initialCooldownUntil);
-  const [now, setNow] = useState(Date.now());
-  const remaining = cooldownUntil ? new Date(cooldownUntil).getTime() - now : 0;
-  const coolingDown = remaining > 0;
-  const cooldownLabel = useMemo(() => formatRemaining(Math.max(0, remaining)), [remaining]);
+  const [now, setNow] = useState<number | null>(null);
+  const remaining = cooldownUntil && now !== null ? new Date(cooldownUntil).getTime() - now : 0;
+  const coolingDown = Boolean(cooldownUntil) && (now === null || remaining > 0);
+  const cooldownLabel = formatRemaining(Math.max(0, remaining));
 
   useEffect(() => {
+    const initialTick = window.setTimeout(() => setNow(Date.now()), 0);
     const interval = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialTick);
+      window.clearInterval(interval);
+    };
   }, []);
-
-  useEffect(() => {
-    setCooldownUntil(initialCooldownUntil);
-  }, [initialCooldownUntil]);
 
   const fetchNews = async () => {
     if (isRefreshing || coolingDown) return;
