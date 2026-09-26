@@ -1,12 +1,7 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { PREFERENCE_PROFILE_VERSION } from "../constants";
+export { nordicArticles, nordicJobState, nordicSources } from "./nordic-schema";
 
-/**
- * Scored news articles.
- * - url is unique for deduplication (auto-indexed by UNIQUE).
- * - Query pattern: WHERE score IS NOT NULL ORDER BY score DESC, publishedAt DESC.
- * - getAllArticles queries: ORDER BY createdAt DESC.
- */
+/** Preserved legacy table. Nordic reads and writes only the Nordic-specific tables below. */
 export const articles = sqliteTable(
   "articles",
   {
@@ -45,12 +40,7 @@ export const articles = sqliteTable(
   }),
 );
 
-/**
- * Hidden favorites (unofficial feature).
- * - article_id is unique (one favorite per article, toggle on/off).
- * - No visitor ID — shared global list for a limited group of users.
- * - Trigger: 5 rapid clicks on the reason (AI evaluation comment) span.
- */
+/** Preserved legacy table. Retained to avoid dropping existing data. */
 export const favorites = sqliteTable(
   "favorites",
   {
@@ -67,11 +57,7 @@ export const favorites = sqliteTable(
   }),
 );
 
-/**
- * Not For Me (hidden/disliked articles).
- * - article_id is unique (one not-for-me per article, toggle on/off).
- * - Trigger: タイトルの5連続横スワイプ
- */
+/** Preserved legacy table. Retained to avoid dropping existing data. */
 export const notForMe = sqliteTable(
   "not_for_me",
   {
@@ -88,15 +74,10 @@ export const notForMe = sqliteTable(
   }),
 );
 
-/**
- * User preference profiles extracted from favorites by LLM (append-only history).
- * - active profile = latest by id (created_at is ISO string with second tie).
- * - analysis stores the validated JSON (PreferenceAnalysis); prompt_section is
- *   an audit snapshot of the generated prompt text (rebuilt on read).
- */
+/** Preserved legacy table. Retained to avoid dropping existing data. */
 export const preferenceProfiles = sqliteTable("preference_profiles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  version: integer("version").notNull().default(PREFERENCE_PROFILE_VERSION),
+  version: integer("version").notNull().default(1),
   analysis: text("analysis").notNull(),
   promptSection: text("prompt_section").notNull(),
   favoriteCount: integer("favorite_count").notNull(),

@@ -12,10 +12,12 @@
 const REQUIRED = {
   TURSO_DATABASE_URL: "Turso DB connection string",
   TURSO_AUTH_TOKEN: "Turso DB auth token",
-  GOOGLE_API_KEY: "Google API key for article scoring (Gemini/Gemma) AND embeddings",
+  GOOGLE_API_KEY: "Google API key for article summaries and Nordic relevance scoring",
 } as const;
 
-const OPTIONAL = {} as const;
+const OPTIONAL = {
+  CRON_SECRET: "Bearer secret for the scheduled Vercel ingest route",
+} as const;
 
 let hasError = false;
 

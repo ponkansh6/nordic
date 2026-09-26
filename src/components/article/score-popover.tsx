@@ -1,98 +1,65 @@
 "use client";
 
-import * as React from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { scoreTier, SCORE_TIER_LABEL } from "@/lib/ui/score";
 import { cn } from "@/lib/utils";
 
 interface ScorePopoverProps {
   score: number | null;
-  relevance: number | null;
-  usefulness: number | null;
+  nordicRelevance: number | null;
   recency: number | null;
 }
 
-export function ScoreBreakdown({ score, relevance, usefulness, recency }: ScorePopoverProps) {
+function ScoreBreakdown({ score, nordicRelevance, recency }: ScorePopoverProps) {
   const tier = scoreTier(score);
-
-  const formatValue = (val: number | null) => (val !== null ? val.toFixed(1) : "N/A");
-  const formatBar = (val: number | null) => {
-    if (val === null) return "░░░░░░░░░░";
-    const filledCount = Math.round(Math.max(0, Math.min(10, val)));
-    return "█".repeat(filledCount) + "░".repeat(10 - filledCount);
-  };
+  const line = (label: string, value: number | null, weight: string) => (
+    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-mono tabular-nums">{value === null ? "--" : value.toFixed(1)}</span>
+      <span className="text-right text-muted-foreground">× {weight}</span>
+    </div>
+  );
 
   return (
     <div
-      className="flex flex-col gap-2"
+      className="space-y-2"
       aria-label={
-        score !== null ? `スコア ${score.toFixed(1)}、${SCORE_TIER_LABEL[tier]}` : "未スコア"
+        score === null ? "未採点" : `スコア ${score.toFixed(1)}、${SCORE_TIER_LABEL[tier]}`
       }
     >
-      <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 text-xs">
-        <span className="text-muted-foreground">関連性 (NTT との関連度)</span>
-        <span className="font-mono text-muted-foreground">{formatBar(relevance)}</span>
-        <span className="font-mono text-right">{formatValue(relevance)}</span>
-        <span className="text-muted-foreground text-right">× 10%</span>
-
-        <span className="text-muted-foreground">有用性</span>
-        <span className="font-mono text-muted-foreground">{formatBar(usefulness)}</span>
-        <span className="font-mono text-right">{formatValue(usefulness)}</span>
-        <span className="text-muted-foreground text-right">× 60%</span>
-
-        <span className="text-muted-foreground">新しさ</span>
-        <span className="font-mono text-muted-foreground">{formatBar(recency)}</span>
-        <span className="font-mono text-right">{formatValue(recency)}</span>
-        <span className="text-muted-foreground text-right">× 30%</span>
-      </div>
-      <div className="border-t pt-2 flex items-center justify-between font-medium">
-        <span>合成</span>
-        <span className="font-mono">{score !== null ? score.toFixed(1) : "--"}</span>
+      {line("北欧デザインとの関連性", nordicRelevance, "80%")}
+      {line("記事の新しさ", recency, "20%")}
+      <div className="flex items-center justify-between border-t pt-2 text-sm font-medium">
+        <span>合計</span>
+        <span className="font-mono">{score === null ? "--" : score.toFixed(1)}</span>
       </div>
     </div>
   );
 }
 
-export function ScorePopover({ score, relevance, usefulness, recency }: ScorePopoverProps) {
-  if (score === null) {
-    return (
-      <div className="inline-flex shrink-0 items-center rounded px-1 text-xs text-muted-foreground">
-        --
-      </div>
-    );
-  }
-
+export function ScorePopover({ score, nordicRelevance, recency }: ScorePopoverProps) {
+  if (score === null)
+    return <span className="shrink-0 px-1 text-xs text-muted-foreground">--</span>;
   const tier = scoreTier(score);
-  const textColorClass =
-    tier === "high"
-      ? "text-score-high"
-      : tier === "mid"
-        ? "text-score-mid"
-        : tier === "low"
-          ? "text-score-low"
-          : "text-muted-foreground";
+  const textColor =
+    tier === "high" ? "text-score-high" : tier === "mid" ? "text-score-mid" : "text-score-low";
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`スコア ${score}、${SCORE_TIER_LABEL[tier]}。内訳を表示します`}
+          aria-label={`スコア ${score.toFixed(1)}、内訳を表示`}
           className={cn(
-            "inline-flex shrink-0 items-center rounded px-1 font-mono text-xs tabular-nums font-semibold transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
-            textColorClass,
+            "shrink-0 rounded px-1 font-mono text-xs font-semibold tabular-nums hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+            textColor,
           )}
         >
           {score.toFixed(1)}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64">
-        <ScoreBreakdown
-          score={score}
-          relevance={relevance}
-          usefulness={usefulness}
-          recency={recency}
-        />
+      <PopoverContent className="w-72">
+        <ScoreBreakdown score={score} nordicRelevance={nordicRelevance} recency={recency} />
       </PopoverContent>
     </Popover>
   );

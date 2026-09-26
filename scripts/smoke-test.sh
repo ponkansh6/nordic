@@ -65,8 +65,8 @@ if grep -q "Cookies can only be modified" "$LOG_FILE"; then
   echo "❌ [smoke] cookie write error in server log"
   exit 1
 fi
-if ! echo "$BODY" | grep -q "News Watch"; then
-  echo "❌ [smoke] page did not render (missing 'News Watch' heading)"
+if ! echo "$BODY" | grep -q "Nordic"; then
+  echo "❌ [smoke] page did not render (missing 'Nordic' heading)"
   exit 1
 fi
 

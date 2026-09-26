@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { AppNav, AppNavMobile } from "./app-nav";
 import { ThemeToggle } from "./theme-toggle";
 
 export function AppHeader() {
@@ -9,11 +8,9 @@ export function AppHeader() {
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-4xl items-center gap-2 px-4 sm:gap-4 sm:px-6">
         <Link href="/" className="font-bold tracking-tight text-foreground">
-          News Watch
+          Nordic
         </Link>
-        <AppNav />
         <div className="ml-auto flex items-center gap-1">
-          <AppNavMobile />
           <ThemeToggle />
         </div>
       </div>

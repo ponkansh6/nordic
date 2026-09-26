@@ -22,78 +22,49 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
-// ── Tier configuration (mirrors spec.md §7.1) ──────────────────────────
+// ── Tier configuration for Nordic collection, scoring, data, and UI code ──
 const TIERS = [
   {
-    name: "Tier 1: Core Business Logic",
+    name: "Tier 1: Nordic collection and scoring",
     target: 95,
     metric: "statements",
-    patterns: [
-      /\/scoring\.ts$/,
-      /\/constants\.ts$/,
-      /\/score-pipeline\.ts$/,
-      /\/vector-filter\.ts$/,
-      /\/vector-math\.ts$/,
-    ],
+    patterns: [/\/nordic\/(sources|score)\.ts$/, /\/nordic\/ingest\.ts$/, /\/nordic\/state\.ts$/],
   },
   {
-    name: "Tier 2: Pipeline Orchestration",
+    name: "Tier 2: Ingest API",
     target: 85,
     metric: "statements",
-    patterns: [
-      /\/api\/fetch-news\/route\.ts$/,
-      /\/api\/fetch-news\/pipeline\/maintenance\.ts$/,
-      /\/api\/fetch-news\/pipeline\/select\.ts$/,
-      /\/api\/feeds\/route\.ts$/,
-      /\/api\/discover-hatena\/route\.ts$/,
-    ],
+    patterns: [/\/api\/ingest\/route\.ts$/],
   },
   {
-    name: "Tier 3: Source Adapters",
+    name: "Tier 3: Feed and page adapters",
     target: 80,
     metric: "statements",
-    patterns: [
-      /\/news\/zenn\.ts$/,
-      /\/news\/qiita\.ts$/,
-      /\/news\/hatena\.ts$/,
-      /\/news\/hatena-discovery\.ts$/,
-      /\/news\/itmedia\.ts$/,
-      /\/news\/codezine\.ts$/,
-      /\/news\/xtech\.ts$/,
-      /\/news\/yamadashy\.ts$/,
-      /\/news\/zdnet\.ts$/,
-    ],
+    patterns: [/\/nordic\/sources\.ts$/],
   },
   {
-    name: "Tier 4: Data Access",
+    name: "Tier 4: Nordic data access",
     target: 65,
     metric: "statements",
-    patterns: [/\/db\/(repository|query)\/.+\.ts$/],
+    patterns: [/\/db\/nordic\.ts$/],
   },
   {
-    name: "Tier 5: UI Components",
+    name: "Tier 5: Nordic UI Components",
     target: 80,
     metric: "statements",
-    patterns: [
-      /\/components\/(article|news|layout)\/.+\.tsx$/,
-      /\/fetch-button\.tsx$/,
-      /\/refresh-context\.tsx$/,
-    ],
+    patterns: [/\/components\/(article|news)\/.+\.tsx$/, /\/fetch-button\.tsx$/],
   },
   {
     name: "Tier 6: External API Wrappers",
     target: 65,
     metric: "statements",
-    patterns: [/\/llm\/.+\.ts$/, /\/embeddings\.ts$/],
-    // embeddings.ts は vector-filter.ts (100%) で統合テスト済みのため、
-    // 単体カバレッジ計測の対象としつつも不合格判定はしない
-    skipFailure: [/\/embeddings\.ts$/],
+    patterns: [/\/llm\/client\.ts$/, /\/nordic\/score\.ts$/],
   },
   {
     name: "Tier 7: RSC Pages",
     target: null, // Excluded from unit test coverage
     metric: "statements",
-    patterns: [/\/app\/page\.tsx$/, /\/app\/dashboard\/feeds\/page\.tsx$/],
+    patterns: [/\/app\/page\.tsx$/],
   },
 ];
 

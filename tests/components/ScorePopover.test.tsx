@@ -1,18 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ScoreBreakdown } from "@/components/article/score-popover";
+import { ScorePopover } from "@/components/article/score-popover";
 
-describe("ScoreBreakdown component", () => {
-  it("renders correct labels and weights", () => {
-    render(<ScoreBreakdown score={8.3} relevance={5} usefulness={8} recency={10} />);
+describe("ScorePopover", () => {
+  it("renders the Nordic relevance and recency weights", async () => {
+    render(<ScorePopover score={8.3} nordicRelevance={8} recency={9.5} />);
+    screen.getByRole("button", { name: "スコア 8.3、内訳を表示" }).click();
 
-    expect(screen.getByText("関連性 (NTT との関連度)")).toBeDefined();
-    expect(screen.getByText("有用性")).toBeDefined();
-    expect(screen.getByText("新しさ")).toBeDefined();
-
-    expect(screen.getByText("× 10%")).toBeDefined();
-    expect(screen.getByText("× 60%")).toBeDefined();
-    expect(screen.getByText("× 30%")).toBeDefined();
+    expect(await screen.findByText("北欧デザインとの関連性")).toBeDefined();
+    expect(screen.getByText("記事の新しさ")).toBeDefined();
+    expect(screen.getByText("× 80%")).toBeDefined();
+    expect(screen.getByText("× 20%")).toBeDefined();
   });
 });

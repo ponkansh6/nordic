@@ -6,6 +6,8 @@
 - pnpm 11.9.x を使う。プロジェクトで指定されたバージョンは `package.json` の `packageManager` を参照。
 - 依存の追加・更新は pnpm で行い、`pnpm-lock.yaml` を `package.json` と同期する。`npm`、`npx`、`bun` でインストールや実行をしない。
 - `pnpm-workspace.yaml` の `allowBuilds` と `overrides` は依存のビルド許可と脆弱性修正を管理するため、意図せず削除しない。
+- Nordic のスキーマ変更は `pnpm db:generate` で `src/lib/db/nordic-migrations/` に生成する。`drizzle.config.ts` は Nordic 専用スキーマと `__drizzle_migrations_nordic` を指定し、継承した他プロジェクトの migration 履歴を実行しない。
+- migration の適用先を確認してから `pnpm db:migrate` を実行する。
 
 ## Git Hooks
 

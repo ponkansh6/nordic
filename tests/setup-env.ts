@@ -40,29 +40,32 @@ try {
   // .env.local missing — tests relying on it will be skipped by their guards.
 }
 
-// Apply all migrations to the in-memory DB BEFORE any test runs.
-// Registered as a global beforeAll so Vitest awaits completion before tests.
-// If a migration is missing (e.g. schema.ts changed but `db:generate` was
-// forgotten), the table won't exist and schema-consistency tests will FAIL —
-// surfacing migration drift in CI / pre-push hook instead of production.
-const migrationsDir = resolve(__dirname, "../src/lib/db/migrations");
+// Apply inherited and Nordic migrations to the in-memory DB BEFORE any test runs.
+// This keeps both the preserved legacy schema and Nordic's isolated schema available
+// without connecting the test process to Turso.
+const migrationsDirs = [
+  resolve(__dirname, "../src/lib/db/migrations"),
+  resolve(__dirname, "../src/lib/db/nordic-migrations"),
+];
 
 async function applyMigrations() {
-  const files = readdirSync(migrationsDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
-  for (const file of files) {
-    const sql = readFileSync(join(migrationsDir, file), "utf-8");
-    const statements = sql
-      .split(/--> statement-breakpoint|;/)
-      .map((s) => s.trim())
-      .filter((s) => s !== "");
-    for (const stmt of statements) {
-      try {
-        await db.$client.execute(stmt);
-      } catch (e) {
-        console.error(`[setup] Failed to apply migration ${file}: ${stmt}`);
-        throw e;
+  for (const migrationsDir of migrationsDirs) {
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    for (const file of files) {
+      const sql = readFileSync(join(migrationsDir, file), "utf-8");
+      const statements = sql
+        .split(/--> statement-breakpoint|;/)
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
+      for (const stmt of statements) {
+        try {
+          await db.$client.execute(stmt);
+        } catch (e) {
+          console.error(`[setup] Failed to apply migration ${file}: ${stmt}`);
+          throw e;
+        }
       }
     }
   }

@@ -1,7 +1,5 @@
 "use client";
 
-import * as React from "react";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScorePopover } from "./score-popover";
 import { scoreTier } from "@/lib/ui/score";
@@ -9,69 +7,40 @@ import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ArticleCardProps {
-  id: string | number;
+  id: number;
   title: string;
   url: string;
-  sourceName?: string | null;
-  sourceId?: string | null;
-  source?: string;
+  sourceName: string;
+  sourceId: string;
   publishedAt: string;
-  summary?: string | null;
-  score?: number | null;
-  relevance?: number | null;
-  usefulness?: number | null;
-  recency?: number | null;
-  keywordLabel?: string | null;
-  reason?: string | null;
-  // eslint-disable-next-line @sbougerel/next-use-client-boundary/props-must-be-serializable
-  onPointerDown?: React.PointerEventHandler<HTMLElement>;
-  // eslint-disable-next-line @sbougerel/next-use-client-boundary/props-must-be-serializable
-  swipeGesture?: {
-    onPointerDown: React.PointerEventHandler<HTMLElement>;
-    onPointerUp: React.PointerEventHandler<HTMLElement>;
-    onPointerCancel: React.PointerEventHandler<HTMLElement>;
-    onClickCapture: React.MouseEventHandler<HTMLElement>;
-  };
+  summary: string | null;
+  nordicRelevance: number | null;
+  recency: number | null;
+  score: number | null;
+  reason: string | null;
 }
 
 function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("ja-JP", {
-      month: "2-digit",
-      day: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
+  const value = new Date(iso);
+  return Number.isNaN(value.getTime()) || value.getUTCFullYear() < 2000
+    ? "日付不明"
+    : value.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
 export function ArticleCard({
   title,
   url,
   sourceName,
-  sourceId,
-  source,
   publishedAt,
   summary,
-  score,
-  relevance,
-  usefulness,
+  nordicRelevance,
   recency,
-  keywordLabel,
+  score,
   reason,
-  onPointerDown,
-  swipeGesture,
 }: ArticleCardProps) {
-  const displaySource = sourceName ?? sourceId ?? source ?? "source";
-  const tier = scoreTier(score ?? null);
+  const tier = scoreTier(score);
   const barColor =
-    tier === "high"
-      ? "bg-score-high"
-      : tier === "mid"
-        ? "bg-score-mid"
-        : tier === "low"
-          ? "bg-score-low"
-          : "bg-muted";
+    tier === "high" ? "bg-score-high" : tier === "mid" ? "bg-score-mid" : "bg-score-low";
 
   return (
     <li className="relative bg-card transition-colors sm:overflow-hidden sm:rounded-xl sm:ring-1 sm:ring-foreground/10 sm:hover:shadow-sm">
@@ -80,75 +49,42 @@ export function ArticleCard({
         className={cn("absolute inset-y-4 left-0 w-1 rounded-r-full sm:inset-y-3", barColor)}
       />
       <article className="px-3 py-4 sm:px-4 sm:py-3.5">
-        {/* Title + Summary */}
-        <div>
-          <h3 className="select-none touch-pan-y py-1 -my-1" {...swipeGesture}>
-            <a
-              draggable={false}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block font-semibold leading-snug text-foreground transition-colors hover:text-primary text-base line-clamp-2"
-            >
-              {title}
-            </a>
-          </h3>
-          {summary && (
-            <p
-              className="mt-1 select-none touch-manipulation text-sm leading-relaxed text-muted-foreground line-clamp-3"
-              onPointerDown={onPointerDown}
-            >
-              {summary}
-            </p>
-          )}
-        </div>
-
-        {/* Metadata: Score · Source · MM/DD · Keyword Badge · Reason */}
-        <div className="mt-2.5 flex items-center gap-1.5 text-xs min-w-0">
-          <ScorePopover
-            score={score ?? null}
-            relevance={relevance ?? null}
-            usefulness={usefulness ?? null}
-            recency={recency ?? null}
-          />
-          <span className="text-muted-foreground shrink-0">·</span>
-          {displaySource && (
-            <span
-              className="font-medium text-muted-foreground shrink-0 select-none touch-manipulation cursor-pointer"
-              onPointerDown={onPointerDown}
-            >
-              {displaySource}
-            </span>
-          )}
-          <span className="text-muted-foreground shrink-0">·</span>
-          <time
-            dateTime={publishedAt}
-            title={publishedAt}
-            className="text-muted-foreground shrink-0 select-none touch-manipulation cursor-pointer"
-            onPointerDown={onPointerDown}
-          >
+        <h2 className="text-base font-semibold leading-snug text-foreground">
+          <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
+            {title}
+          </a>
+        </h2>
+        {summary && (
+          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+            {summary}
+          </p>
+        )}
+        <div className="mt-3 flex min-w-0 items-center gap-2 text-xs">
+          <ScorePopover score={score} nordicRelevance={nordicRelevance} recency={recency} />
+          <span aria-hidden className="text-muted-foreground">
+            ·
+          </span>
+          <span className="shrink-0 font-medium text-muted-foreground">{sourceName}</span>
+          <span aria-hidden className="text-muted-foreground">
+            ·
+          </span>
+          <time dateTime={publishedAt} className="shrink-0 text-muted-foreground">
             {formatDate(publishedAt)}
           </time>
-          {keywordLabel && (
-            <>
-              <span className="text-muted-foreground shrink-0">·</span>
-              <Badge variant="secondary" className="shrink-0 max-w-[6rem] truncate">
-                {keywordLabel}
-              </Badge>
-            </>
-          )}
           {reason && (
             <>
-              <span className="text-muted-foreground shrink-0">·</span>
+              <span aria-hidden className="text-muted-foreground">
+                ·
+              </span>
               <Popover>
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex min-w-0 flex-1 items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label={`スコアの理由: ${reason}`}
+                    className="inline-flex min-w-0 flex-1 items-center gap-1 text-muted-foreground hover:text-foreground"
+                    aria-label={`評価理由: ${reason}`}
                   >
                     <HelpCircle className="h-3 w-3 shrink-0" />
-                    <span className="italic truncate">{reason}</span>
+                    <span className="truncate">{reason}</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 text-sm leading-relaxed">{reason}</PopoverContent>

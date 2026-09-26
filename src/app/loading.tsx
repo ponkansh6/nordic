@@ -4,7 +4,7 @@ import { SkeletonList } from "@/components/article/article-skeleton";
 
 export default function Loading() {
   return (
-    <PageShell title="News Watch">
+    <PageShell title="Nordic">
       <div className="space-y-6">
         <Skeleton className="h-10 w-32 rounded-md" />
         <SkeletonList />

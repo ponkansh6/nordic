@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "../lib/test-utils";
-import { ArticleList, type ArticleListRow as Article } from "@/components/article/article-list";
+import { describe, it, expect } from "vitest";
+import { fireEvent, render, screen } from "../lib/test-utils";
+import { ArticleList, type Article } from "@/components/article/article-list";
 import "@testing-library/jest-dom/vitest";
 
 const mockArticles: Article[] = [
@@ -10,13 +10,10 @@ const mockArticles: Article[] = [
     title: "テスト記事 1",
     url: "https://example.com/1",
     publishedAt: "2026-03-30T00:00:00Z",
-    sourceName: "Zenn",
-    sourceId: "zenn",
-    keyword: "ai",
-    keywordLabel: "AI",
+    sourceName: "Finnish Design Shop",
+    sourceId: "finnish-design-shop",
     summary: "これは要約1です。",
-    relevance: 8.0,
-    usefulness: 9.0,
+    nordicRelevance: 8.0,
     recency: 7.0,
     score: 8,
     reason: "関連性が高いため",
@@ -26,13 +23,10 @@ const mockArticles: Article[] = [
     title: "テスト記事 2",
     url: "https://example.com/2",
     publishedAt: "2026-03-30T00:00:00Z",
-    sourceName: "Qiita",
-    sourceId: "qiita",
-    keyword: null,
-    keywordLabel: null,
+    sourceName: "Lumene",
+    sourceId: "lumene",
     summary: null,
-    relevance: null,
-    usefulness: null,
+    nordicRelevance: null,
     recency: null,
     score: null,
     reason: null,
@@ -40,19 +34,11 @@ const mockArticles: Article[] = [
 ];
 
 describe("ArticleList", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it("renders a list of articles with title, source, score, and summary", () => {
     render(<ArticleList articles={mockArticles} />);
 
     expect(screen.getByText("テスト記事 1")).toBeInTheDocument();
-    expect(screen.getByText("Zenn")).toBeInTheDocument();
+    expect(screen.getByText("Finnish Design Shop")).toBeInTheDocument();
     expect(screen.getByText("8.0")).toBeInTheDocument();
     expect(screen.getByText("これは要約1です。")).toBeInTheDocument();
   });
@@ -61,7 +47,7 @@ describe("ArticleList", () => {
     render(<ArticleList articles={mockArticles} />);
 
     expect(screen.getByText("テスト記事 2")).toBeInTheDocument();
-    expect(screen.getByText("Qiita")).toBeInTheDocument();
+    expect(screen.getByText("Lumene")).toBeInTheDocument();
     // null score badge should display "--"
     expect(screen.getByText("--")).toBeInTheDocument();
   });
@@ -78,15 +64,16 @@ describe("ArticleList", () => {
     expect(link2).toHaveAttribute("href", "https://example.com/2");
   });
 
-  it("shows score breakdown tooltip on score badge", async () => {
+  it("shows score breakdown in the Nordic dimensions", async () => {
     render(<ArticleList articles={mockArticles} />);
-    const scoreButton = screen.getByRole("button", { name: /スコア 8、高スコア/ });
+    const scoreButton = screen.getByRole("button", { name: /スコア 8.0、内訳を表示/ });
     expect(scoreButton).toBeInTheDocument();
 
     fireEvent.click(scoreButton);
-    expect(await screen.findByText("関連性 (NTT との関連度)")).toBeInTheDocument();
-    expect(screen.getByText(/有用性/)).toBeInTheDocument();
-    expect(screen.getByText(/新しさ/)).toBeInTheDocument();
+    expect(await screen.findByText("北欧デザインとの関連性")).toBeInTheDocument();
+    expect(screen.getByText("記事の新しさ")).toBeInTheDocument();
+    expect(screen.getByText("× 80%")).toBeInTheDocument();
+    expect(screen.getByText("× 20%")).toBeInTheDocument();
   });
 
   it("renders with loading state", () => {
@@ -96,23 +83,10 @@ describe("ArticleList", () => {
     expect(list).toHaveAttribute("aria-busy", "true");
   });
 
-  it("renders correctly without articles", () => {
+  it("renders an empty list", () => {
     const { container } = render(<ArticleList articles={[]} />);
     const list = container.querySelector("ul");
     expect(list).toBeInTheDocument();
     expect(list?.children).toHaveLength(0);
-  });
-
-  it("renders with empty articles array", () => {
-    const { container } = render(<ArticleList articles={[]} />);
-    const list = container.querySelector("ul");
-    expect(list).toBeInTheDocument();
-    expect(list?.children.length).toBe(0);
-  });
-
-  it("renders with isLoading prop", () => {
-    const { container } = render(<ArticleList articles={mockArticles} isLoading={true} />);
-    const list = container.querySelector("ul");
-    expect(list).toHaveClass("opacity-60", "pointer-events-none");
   });
 });

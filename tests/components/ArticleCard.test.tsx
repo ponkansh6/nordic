@@ -4,61 +4,47 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ArticleCard } from "@/components/article/article-card";
 import "@testing-library/jest-dom/vitest";
 
+const baseArticle = {
+  id: 1,
+  title: "テストカード",
+  url: "https://example.com/story",
+  sourceName: "Finnish Design Shop",
+  sourceId: "finnish-design-shop",
+  publishedAt: "2026-03-30T00:00:00Z",
+  summary: "北欧の素材と家具の背景を紹介する記事です。",
+  nordicRelevance: 8,
+  recency: 6,
+  score: 7.6,
+  reason: "デザインの背景を詳しく扱っています。",
+};
+
 describe("ArticleCard", () => {
-  it("renders correctly with missing summary, keywords, and score", () => {
-    render(
-      <ArticleCard
-        id={1}
-        title="テストカード"
-        url="https://example.com"
-        source="Zenn"
-        publishedAt="2026-03-30T00:00:00Z"
-      />,
-    );
-
+  it("renders the original title, source, and Japanese summary", () => {
+    render(<ArticleCard {...baseArticle} />);
     expect(screen.getByText("テストカード")).toBeInTheDocument();
-    expect(screen.getByText("Zenn")).toBeInTheDocument();
-    expect(screen.getByText("--")).toBeInTheDocument(); // null score
+    expect(screen.getByText("Finnish Design Shop")).toBeInTheDocument();
+    expect(screen.getByText(baseArticle.summary)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "テストカード" })).toHaveAttribute(
+      "href",
+      baseArticle.url,
+    );
   });
 
-  it("renders reason in a Popover and opens it on click", async () => {
-    render(
-      <ArticleCard
-        id={2}
-        title="理由付き記事"
-        url="https://example.com"
-        source="Qiita"
-        publishedAt="2026-03-30T00:00:00Z"
-        reason="この記事は非常に有用で最新のトレンドです"
-      />,
-    );
+  it("shows the Nordic score breakdown and evaluation reason", async () => {
+    render(<ArticleCard {...baseArticle} />);
+    fireEvent.click(screen.getByRole("button", { name: /内訳を表示/ }));
+    expect(await screen.findByText("北欧デザインとの関連性")).toBeInTheDocument();
+    expect(screen.getByText("記事の新しさ")).toBeInTheDocument();
 
-    const button = screen.getByRole("button", { name: /スコアの理由:/ });
-    expect(button).toBeInTheDocument();
-    // truncate は CSS による省略のため、DOM の textContent には全文が含まれる
-    expect(button).toHaveTextContent("この記事は非常に有用で最新のトレンドです");
-
-    fireEvent.click(button);
-
-    // Popover content should appear (use getAllByText since trigger also has it)
-    const matches = await screen.findAllByText("この記事は非常に有用で最新のトレンドです");
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    const reasonButton = screen.getByRole("button", {
+      name: `評価理由: ${baseArticle.reason}`,
+    });
+    fireEvent.click(reasonButton);
+    expect(await screen.findAllByText(baseArticle.reason)).toHaveLength(2);
   });
 
-  it("handles invalid date format gracefully", () => {
-    render(
-      <ArticleCard
-        id={3}
-        title="無効な日付の記事"
-        url="https://example.com"
-        source="Test"
-        publishedAt="not-a-date"
-      />,
-    );
-
-    expect(screen.getByText("無効な日付の記事")).toBeInTheDocument();
-    // When date parsing fails, formatDate catches the error and returns the original string
-    const timeElement = screen.getByTitle("not-a-date");
-    expect(timeElement).toBeInTheDocument();
+  it("handles an invalid publication date", () => {
+    render(<ArticleCard {...baseArticle} publishedAt="not-a-date" />);
+    expect(screen.getByText("日付不明")).toBeInTheDocument();
   });
 });

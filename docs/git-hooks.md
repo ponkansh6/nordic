@@ -37,6 +37,8 @@ warning は内容を確認し、必要なら `openspec/specs/news-watch/spec.md`
 
 `src/lib/db/schema.ts` またはマイグレーションを変更し、`.env.local` に Turso 認証情報がある場合、pre-push は本番スキーマ drift 検出を advisory として実行する。ネットワークや認証に依存するため push は止めない。検出内容を確認し、本番スキーマへの変更は作業指示で明示された場合にのみ適用する。
 
+Nordic の migration は `src/lib/db/nordic-migrations/` と専用履歴 `__drizzle_migrations_nordic` を使う。新しい Nordic テーブルの適用は migration のレビュー後、適用先を確認して `pnpm db:migrate` で行う。コード変更やローカル型チェックだけを根拠に本番DBへ適用しない。
+
 ## 仕様書の更新
 
 機能仕様、データモデル、環境変数、アーキテクチャの正本は `openspec/specs/news-watch/spec.md`。機能やデータアクセスの振る舞いを変更した場合は、同じ変更に仕様書を合わせる。

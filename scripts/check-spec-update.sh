@@ -19,47 +19,28 @@ SPEC_FILE="openspec/specs/news-watch/spec.md"
 # When adding a new source module, API route, or core component, add it here.
 SPEC_SENSITIVE_PATTERNS=(
   # ── Core business logic ──
-  "src/lib/scoring.ts"
-  "src/lib/score-pipeline.ts"
+  "src/lib/nordic/"
   "src/lib/constants.ts"
-  "src/lib/vector-filter.ts"
-  "src/lib/vector-math.ts"
-  "src/lib/embeddings.ts"
-  "src/lib/config.ts"
-  "src/lib/sources.ts"
-  "src/lib/types.ts"
-  "src/lib/serializable.ts"
 
   # ── Database ──
   "src/lib/db/schema.ts"
-  "src/lib/db/actions.ts"
+  "src/lib/db/nordic.ts"
   "src/lib/db/index.ts"
   "drizzle.config.ts"
 
   # ── API routes ──
   "src/app/api/"
 
-  # ── News source adapters ──
-  "src/lib/news/"
-
   # ── LLM integration ──
   "src/lib/llm/"
 
   # ── UI components (spec-relevant) ──
-  "src/app/article-list.tsx"
-  "src/app/news-section.tsx"
   "src/app/fetch-button.tsx"
-  "src/app/refresh-context.tsx"
+  "src/components/article/"
+  "src/components/news/news-section.tsx"
   "src/app/layout.tsx"
   "src/app/page.tsx"
   "src/app/loading.tsx"
-
-  # ── Hidden features ──
-  "src/app/bookmarks/"
-  "src/app/api/favorites/"
-
-  # ── Admin DB viewer ──
-  "src/app/admin/"
 )
 
 # ── Collect staged files ─────────────────────────────────────────────────
