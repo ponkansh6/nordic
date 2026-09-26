@@ -8,8 +8,8 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   /* ⚠️ フォントは「リテラル名」で書く。var() は @theme inline で解決されない */
-  --font-sans: "Geist", "Geist Fallback", "Hiragino Sans", "Noto Sans JP",
-               ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    "Geist", "Geist Fallback", "Hiragino Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -89,9 +89,9 @@
   --sidebar-ring: oklch(0.708 0 0);
 
   /* ── アプリ固有トークン（News Watch のドメイン語彙）── */
-  --score-high: oklch(0.65 0.15 155);    /* >= 8 */
-  --score-mid: oklch(0.72 0.15 75);      /* 5..7 */
-  --score-low: oklch(0.62 0.19 25);      /* < 5  */
+  --score-high: oklch(0.65 0.15 155); /* >= 8 */
+  --score-mid: oklch(0.72 0.15 75); /* 5..7 */
+  --score-low: oklch(0.62 0.19 25); /* < 5  */
   --score-none: var(--muted-foreground); /* 未スコア */
   --scrim: rgb(0 0 0 / 0.4);
 }

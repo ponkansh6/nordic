@@ -15,15 +15,22 @@ jobs:
           version: 11.9.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint:fast
       - run: pnpm exec eslint src/
       - run: pnpm exec tsgo --noEmit
-      - run: pnpm exec vitest run
+      # pre-commit の lint-staged は staged ファイルのみ整形するため、
+      # --no-verify でスキップされた未整形コードが master に混入し得る。
+      # ローカル pre-push のレーン A と同じゲートを CI にも配線する。
+      - run: pnpm run format:check
+      # vitest run --coverage 1 本に統合。素の `vitest run` および
+      # `vitest run tests/db/schema-consistency.test.ts` の単独実行は、
+      # 同じテストを --coverage に完全に内包されたまま重複実行していた
+      # （coverage 版との差は +3.6s のみで、二重実行の方が高コスト）。
       - run: pnpm exec vitest run --coverage
       - run: node scripts/check-coverage-tiers.mjs
       - run: bash scripts/check-spec-refs.sh
-      - run: pnpm exec vitest run tests/db/schema-consistency.test.ts
+      - run: bash scripts/check-security.sh
       - run: bash scripts/smoke-test.sh

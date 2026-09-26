@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# News Watch
 
-## Getting Started
+複数の技術系ニュースソースを集約し、NTT グループとの関連性・技術的な有用性・新しさを評価して閲覧する Next.js アプリです。記事の収集と評価には Google Gemini API、永続化には Turso（libSQL）を使います。
 
-First, run the development server:
+## 開発環境
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 24.x
+- pnpm 11.9 以降（11.x）
+- Turso データベースと Google API キー
+
+## 起動
+
+```sh
+pnpm install --frozen-lockfile
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`.env.local` に `TURSO_DATABASE_URL`、`TURSO_AUTH_TOKEN`、`GOOGLE_API_KEY` を設定してから起動します。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```sh
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+ブラウザーで [http://localhost:3000](http://localhost:3000) を開きます。必須環境変数は次のコマンドで確認できます。
 
-## Learn More
+```sh
+pnpm check-env
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 主なコマンド
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```sh
+pnpm test                 # テスト
+pnpm lint:fast            # 高速 lint
+pnpm type-check:fast      # TypeScript 型チェック
+pnpm build                # 本番ビルド
+pnpm db:generate          # Drizzle マイグレーション生成
+pnpm db:studio            # Drizzle Studio で DB を確認
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+機能仕様とアーキテクチャは [`openspec/specs/news-watch/spec.md`](openspec/specs/news-watch/spec.md)、フックや開発ツールの詳細は [`docs/git-hooks.md`](docs/git-hooks.md) と [`docs/tooling.md`](docs/tooling.md) を参照してください。
 
-## Deploy on Vercel
+## セキュリティ
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`.env.local` などの環境変数ファイルや認証情報はコミットしないでください。`.env.local` は Git の追跡対象外です。ニュースソースへアクセスする際は、各サイトの利用規約と `robots.txt` を守ってください。

@@ -263,7 +263,7 @@ const nextConfig: NextConfig = {
 // score-pipeline.ts:45-52
 for (const [keyword, group] of taggedByKeyword) {
   // 最大 8 キーワード群
-  for (let start = 0; start < group.length; ) {
+  for (let start = 0; start < group.length;) {
     savedCount += await scoreAndSaveBatch(batch, keyword); // ← 直列
   }
 }

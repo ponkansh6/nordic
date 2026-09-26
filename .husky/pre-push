@@ -1,10 +1,42 @@
 #!/bin/sh
+# ============================================================================
+# pre-push — 分単位 / push 差分スコープ / 「壊れたものを push させない」
+#
+#   Phase 0: 未コミット変更ガード（既存・最優先・blocking）
+#   Phase 1（常時・2 レーン並列）: レーン A (preflight→format→security→smoke)
+#                                    | レーン B (unit+coverage)
+#   Phase 2（条件付き・advisory）: 本番スキーマ drift
+#
+# 設計原則:
+#   - vitest は 1 回だけ回す（--coverage 版は素の run より +3.6s しか違わない）
+#   - pnpm ラッパーを挟まない（1 呼び出し約 0.52s）
+#   - 独立な検査は並列。ログはレーンごとに分離し、失敗したものだけ全文表示
+#   - 環境/ネットワーク依存の検査は blocking にしない（push 可否の根拠にならない）
+#   - このマシンは物理 2 コア（Intel i3-10110U, HT で nproc=4）。
+#     3 並列で実測 wall 46.9s、2 レーン（A: preflight→smoke 直列 / B: coverage）
+#     で実測 wall 46.4s。速度は同着だが、2 レーンはピークメモリが半分になり
+#     swap（512Mi 中 264Mi 使用済み）スラッシングのリスクを避けられるため、
+#     2 レーンを採用する。レーン A は 34.8s で終わり、クリティカルパスは
+#     レーン B（vitest）。
+# ============================================================================
+set -eu
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+PATH="$ROOT/node_modules/.bin:$PATH"
+export PATH
 
 # --- Uncommitted change guard ---
 # push 内容と作業ツリーがズレていると「直したつもりの変更が本番に出ない」。
 # 実際に not_for_me の管理画面配線が未コミットのまま残り、NFM 登録は成功して
 # いるのに admin 画面だけ 0 件、という状態が本番で発生した。
 # 重い検査（eslint / smoke / coverage）より前に置いて即座に落とす。
+#
+# 「tracked ファイルについては」この DIRTY チェックが、「untracked ファイル
+# については」下の src/ tests/ 限定ガードが、それぞれ push 時点での
+# 作業ツリー == HEAD を保証する。両者が揃って初めて worktree 全体と HEAD の
+# 一致が保証されるため、study にある check-head-typecheck.sh
+# （worktree を切って HEAD を型検査する）は冗長になる。よって移植しない。
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
   DIRTY=$(git diff --name-only HEAD)
   if [ -n "$DIRTY" ]; then
@@ -28,73 +60,245 @@ if git rev-parse --verify HEAD >/dev/null 2>&1; then
     echo "$UNTRACKED" | sed 's/^/   - /'
     echo ""
   fi
+
+  # src/ tests/ の未追跡ファイルは blocking。
+  # `git diff --name-only HEAD` は tracked ファイルの差分しか見ないため、
+  # 「新規ファイルを作って追跡下のファイルからだけ import し、その新規
+  # ファイル自体は git add し忘れる」という事故を検出できない
+  # （not_for_me の管理画面配線が未コミットのまま残った事故と同型）。
+  # 例: src/lib/new-helper.ts を新規作成して src/app/page.tsx から import し、
+  #     page.tsx だけ commit → 上の DIRTY チェックは空で通過するが、HEAD には
+  #     new-helper.ts が無いため CI / Vercel 本番ビルドが壊れる。Phase 1 は
+  #     作業ツリーを見て検査するため、ローカルではこの欠落に気づけない。
+  # よってここで exit 1 にする（~5ms、worktree 不要）。
+  ORPHAN=$(git ls-files --others --exclude-standard -- src tests)
+  if [ -n "$ORPHAN" ]; then
+    echo ""
+    echo "❌ src/ tests/ に未追跡ファイルがあります。HEAD に含まれないため CI/本番ビルドが壊れます。"
+    echo "$ORPHAN" | sed 's/^/   - /'
+    echo ""
+    exit 1
+  fi
 fi
 
-MERGE_BASE=$(git merge-base --fork-point origin/master HEAD 2>/dev/null || git rev-parse HEAD)
-PUSH_FILES=$(git diff --name-only "$MERGE_BASE"...HEAD 2>/dev/null || true)
+# ---------------------------------------------------------------------------
+# 0. push 対象 ref の解決
+#    git は stdin に "<local ref> <local sha> <remote ref> <remote sha>" を
+#    ref ごとに 1 行渡す。remote sha が正しい比較起点。
+#
+#    旧実装の `git merge-base --fork-point origin/master HEAD` は reflog 依存で、
+#    fresh clone / gc 後に失敗する。そのときフォールバックの `rev-parse HEAD` が
+#    空 diff を生み、smoke と coverage が無言でスキップされていた。
+# ---------------------------------------------------------------------------
+is_zero() { case "$1" in *[!0]*) return 1 ;; *) return 0 ;; esac; }
 
-# --- spec.md reference validity check ---
-# Verify all file references in spec.md point to real files.
-if ! bash scripts/check-spec-refs.sh; then
+TIP=""
+CHANGED=""
+SAW_REF=0
+
+if [ -t 0 ]; then
+  # 端末から直接実行した場合、stdin は TTY で EOF を返さないため
+  # `read` が入力待ちで固まる。手動実行時は stdin を読まず、後段の
+  # 「stdin なし」フォールバック（HEAD ⇔ origin/master 比較）に委ねる。
+  SAW_REF=0
+else
+  while read -r _lref lsha _rref rsha; do
+    SAW_REF=1
+    [ -n "${lsha:-}" ] || continue
+    # ref 削除 push（local sha がゼロ）は検証対象なし。
+    if is_zero "$lsha"; then continue; fi
+
+    TIP="$lsha"
+    if [ -n "${rsha:-}" ] && ! is_zero "$rsha"; then
+      BASE="$rsha"                                                # 既存 ref への追記
+    else
+      BASE=$(git merge-base "$lsha" origin/master 2>/dev/null || echo "")  # 新規 ref
+    fi
+
+    # $BASE（remote sha）はリモートが advertise した sha であり、ローカルに
+    # fetch されているとは限らない（別マシンから push された直後、他人が
+    # リモートブランチを進めた直後など）。その場合 `git diff` は失敗して
+    # 空文字を返し、無変更判定 → coverage/smoke が無言でスキップされる
+    # （旧実装がここで一度潰したはずの「無言スキップ」事故の再発パターン）。
+    # `git cat-file -e` で $BASE の実在を確認し、無ければ fail-open で
+    # ls-tree（push される全ファイル）を差分扱いにする。過大評価にしか
+    # 倒れないため安全側。
+    if [ -n "$BASE" ] && git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+      FILES=$(git diff --name-only "$BASE" "$lsha" 2>/dev/null) || FILES=$(git ls-tree -r --name-only "$lsha" 2>/dev/null || echo "")
+    else
+      FILES=$(git ls-tree -r --name-only "$lsha" 2>/dev/null || echo "")
+    fi
+    CHANGED=$(printf '%s\n%s' "$CHANGED" "$FILES")
+  done
+fi
+
+if [ "$SAW_REF" = "1" ] && [ -z "$TIP" ]; then
+  echo "[pre-push] ref 削除のみの push です。検証をスキップします。"
+  exit 0
+fi
+
+if [ -z "$TIP" ]; then                       # stdin なし（手動実行など）
+  TIP=$(git rev-parse HEAD)
+  BASE=$(git merge-base HEAD origin/master 2>/dev/null || echo "")
+  if [ -n "$BASE" ]; then
+    # set -eu 下で git diff が失敗しただけでフック全体が異常終了しないよう、
+    # ここも fail-open（全ファイル差分扱い）で受ける。
+    CHANGED=$(git diff --name-only "$BASE" HEAD 2>/dev/null) || CHANGED=$(git ls-tree -r --name-only HEAD 2>/dev/null || echo "")
+  else
+    CHANGED=$(git ls-tree -r --name-only HEAD 2>/dev/null || echo "")
+  fi
+fi
+
+CHANGED=$(printf '%s\n' "$CHANGED" | sed '/^$/d' | sort -u)
+
+# ---------------------------------------------------------------------------
+# 1. 実行フェーズの決定
+# ---------------------------------------------------------------------------
+changed_match() { printf '%s\n' "$CHANGED" | grep -qE "$1"; }
+
+# NEED_TEST: package.json だけでなく pnpm-lock.yaml / pnpm-workspace.yaml /
+# .npmrc の単独変更でも依存が変わり得る（`pnpm update` によるロックファイル
+# だけの patch bump、pnpm-workspace.yaml の overrides 変更など）。
+# scripts/check-coverage-tiers.mjs は Tier 閾値（95/85/80%）の定義本体なので
+# その変更自体がテスト結果の合否基準を変える。
+NEED_TEST=0; NEED_SMOKE=0; NEED_DRIFT=0
+if changed_match '^(src/|tests/|scripts/check-coverage-tiers\.mjs$|vitest\.config\.ts$|tsconfig\.json$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$|drizzle\.config\.ts$)'; then
+  NEED_TEST=1
+fi
+# NEED_SMOKE: tsconfig.json は study の NEED_BUILD にも入っている。
+# next.config.ts に typescript.ignoreBuildErrors が無いため next build は
+# 型検査を行う＝tsconfig.json の変更はビルド結果に影響する。
+# public/ と scripts/smoke-test.sh 自体の変更も、静的アセット配信と
+# スモークテストの挙動を直接左右するため対象に含める。
+if changed_match '^(src/|public/|next\.config\.ts$|postcss\.config\.|tsconfig\.json$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/smoke-test\.sh$)'; then
+  NEED_SMOKE=1
+fi
+if changed_match '^src/lib/db/(schema\.ts$|migrations/)'; then
+  NEED_DRIFT=1
+fi
+
+N_CHANGED=$(printf '%s\n' "$CHANGED" | grep -c . || true)
+printf '[pre-push] tip=%s  changed=%s files\n' "$(git rev-parse --short "$TIP")" "$N_CHANGED"
+printf '[pre-push] plan: preflight=1 unit+coverage=%s smoke=%s drift=%s\n\n' \
+  "$NEED_TEST" "$NEED_SMOKE" "$NEED_DRIFT"
+
+if changed_match '^src/' && ! changed_match '^tests/'; then
+  printf '[warn] src/ が変更されていますが tests/ は未更新です。テスト追加を検討してください。\n\n'
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Phase 1 — 2 レーン並列実行
+#    レーン A（read-only の静的検査 + smoke）とレーン B（vitest、coverage/
+#    のみに書く）は互いに独立。物理 2 コアでは 3 並列にしても wall は
+#    46.9s（3並列）vs 46.4s（2レーン）で誤差の範囲、ピークメモリだけが
+#    増えて swap の危険が上がるため 3 並列にしない。
+#    レーン A は preflight → smoke を「同じサブシェル内で直列に」実行する
+#    （並列ジョブを増やさないため）。レーン A 全体で 34.8s、クリティカル
+#    パスはレーン B（vitest+coverage、37.4s）。
+# ---------------------------------------------------------------------------
+LOG_A=$(mktemp); LOG_B=$(mktemp)
+PID_A=""; PID_B=""
+# smoke-test.sh は setsid で next-server を別プロセスグループに起動する。
+# ここで Ctrl-C 等により pre-push 自体が中断されると、mktemp の trap は
+# ログファイルを消すだけでバックグラウンドジョブ（レーン A/B のサブシェル、
+# ひいてはレーン A 内で fork される smoke-test.sh とその setsid 子プロセス）
+# を殺さない。ef7b8c3 で一度潰した「孤児 next-server がポート3100を握った
+# まま残り、次回 push の smoke がポート事前チェックで即死する」問題が、
+# 並列化（バックグラウンド化）によって再発するのを防ぐため、trap でレーンの
+# サブシェル PID も明示的に kill する（サブシェルへの SIGTERM は
+# smoke-test.sh 自身の EXIT trap を誘発し、setsid 子プロセスの後始末はそちらに任せる）。
+# `|| true` は必須。EXIT trap 内のコマンドの終了ステータスは `exit 0` を
+# 上書きするため（dash / bash 双方で確認）、wait 済み＝既に回収された PID に
+# 対する kill が返す 1 がそのままフックの終了コードになり、「すべてのゲートを
+# 通過しました」と表示しながら push が失敗する。
+# なお `rc=$?; ...; exit $rc` 方式は dash では $? が exit の引数を拾わないため
+# 同じく壊れる。`|| true` が唯一正しく両ケース（成功=0 / 失敗=1）を保つ。
+trap 'kill $PID_A $PID_B 2>/dev/null || true; rm -f "$LOG_A" "$LOG_B"' EXIT INT TERM
+
+report() {   # report <name> <rc> <log>
+  if [ "$2" -eq 0 ]; then
+    printf '  OK    %s\n' "$1"
+  else
+    printf '\n===== FAILED: %s (exit %s) =====\n' "$1" "$2"
+    cat "$3"
+    printf '===== end: %s =====\n\n' "$1"
+  fi
+}
+
+echo "[pre-push] Phase 1: レーン A (preflight/format/security/smoke) / レーン B (unit+coverage) を並列実行中..."
+
+(
+  set -e
+  bash scripts/check-lockfile-sync.sh
+  # --- ESLint on src/ (Server Action boundary + type hygiene) ---
+  # The @sbougerel/next-use-client-boundary rule catches non-serializable props
+  # crossing the Server → Client boundary. See shared-plan/12-rsc-cookie-fix.md.
+  eslint src/
+  bash scripts/check-spec-refs.sh
+  # pre-commit の lint-staged は staged ファイルのみ oxfmt --write するため、
+  # push 時点でリポジトリ全体が整形済みとは限らない（--no-verify で
+  # pre-commit をスキップされた場合など）。ここで検査してブロックする。
+  oxfmt --check .
+  bash scripts/check-security.sh
+  if [ "$NEED_SMOKE" = "1" ]; then
+    bash scripts/smoke-test.sh
+  fi
+) >"$LOG_A" 2>&1 &
+PID_A=$!
+
+if [ "$NEED_TEST" = "1" ]; then
+  # vitest run tests/db/schema-consistency.test.ts の単独実行は行わない。
+  # --coverage はリポジトリ全テストを含むため、このファイルも必ず内包される
+  # （旧実装は同じテストを 2 回走らせていた: 1.18s + 37.4s の無駄）。
+  ( set -e; vitest run --coverage; node scripts/check-coverage-tiers.mjs ) >"$LOG_B" 2>&1 &
+  PID_B=$!
+fi
+
+FAIL=0
+LANE_A_LABEL="lane A (lockfile-sync/eslint/spec-refs/format-check/security"
+if [ "$NEED_SMOKE" = "1" ]; then LANE_A_LABEL="${LANE_A_LABEL}/smoke"; fi
+LANE_A_LABEL="${LANE_A_LABEL})"
+
+RC=0; wait "$PID_A" || RC=$?
+report "$LANE_A_LABEL" "$RC" "$LOG_A"
+[ "$RC" -eq 0 ] || FAIL=1
+
+if [ -n "$PID_B" ]; then
+  RC=0; wait "$PID_B" || RC=$?
+  report "lane B (unit tests + coverage tiers)" "$RC" "$LOG_B"
+  [ "$RC" -eq 0 ] || FAIL=1
+else
+  echo "  SKIP  lane B: unit tests + coverage (src/ tests/ など対象に変更なし)"
+fi
+
+if [ "$FAIL" -ne 0 ]; then
+  echo ""
+  echo "[pre-push] Phase 1 で失敗しました。push を中止します。"
   exit 1
 fi
 
-# --- Test file staleness check ---
-# src/ が変更された場合、tests/ も更新されたか警告（pre-push 固有）
-if echo "$PUSH_FILES" | grep -qE "^src/"; then
-  if echo "$PUSH_FILES" | grep -qE "^tests/"; then
-    echo "Test files updated."
-  else
-    echo ""
-    echo "⚠️  Warning: src/ files changed but tests/ was NOT updated."
-    echo "   Consider adding or updating tests for the changed source code."
-    echo ""
-  fi
-fi
-
-# --- ESLint on src/ (Server Action boundary + type hygiene) ---
-# The @sbougerel/next-use-client-boundary rule catches non-serializable props
-# crossing the Server → Client boundary. See shared-plan/12-rsc-cookie-fix.md.
-pnpm exec eslint src/
-
-# --- RSC smoke test (build + start + curl) ---
-# Catches runtime errors that `next build` passes through. Runs only when
-# src/ changed (same condition as coverage). ~30s.
-if echo "$PUSH_FILES" | grep -qE "^src/"; then
+# ---------------------------------------------------------------------------
+# 3. Phase 2 — 本番スキーマ drift（advisory のみ）
+#    「push しようとしているコード」ではなく「本番 DB の状態」を見る検査。
+#    ネットワークと .env.local の有無に依存し開発者ごとに挙動が変わるため、
+#    push をブロックしない（問題8: 旧実装は set -e が無いのに最後のコマンドの
+#    exit code がフックの exit code になっていたため、ネットワーク/認証の
+#    都合で push がブロックされ得た）。CI 側（secrets あり）を blocking の正とする。
+# ---------------------------------------------------------------------------
+if [ "$NEED_DRIFT" = "1" ] && [ -f "$ROOT/.env.local" ]; then
   echo ""
-  echo "🚀 Running RSC smoke test..."
-  bash scripts/smoke-test.sh
-fi
-
-# --- Schema consistency check (local in-memory DB) ---
-pnpm exec vitest run tests/db/schema-consistency.test.ts
-
-# --- Coverage tier validation ---
-# Run only when src/ files changed (coverage run is ~30s).
-if echo "$PUSH_FILES" | grep -qE "^src/"; then
-  echo ""
-  echo "📊 Running coverage tier validation..."
-  pnpm exec vitest run --coverage 2>/dev/null
-  node scripts/check-coverage-tiers.mjs
-  COV_EXIT=$?
-  if [ "$COV_EXIT" -ne 0 ]; then
-    echo "❌ Coverage validation failed (exit=$COV_EXIT)."
-    echo "   Run 'node scripts/check-coverage-tiers.mjs' locally for details."
-    exit "$COV_EXIT"
-  fi
-  echo ""
-fi
-
-# --- Production schema drift detection ---
-# If .env.local is present, load Turso credentials and check that the
-# production DB schema matches schema.ts.  This catches drift when columns
-# were added to schema.ts but drizzle-kit push was never run against Turso.
-ENV_FILE="$(git rev-parse --show-toplevel)/.env.local"
-if [ -f "$ENV_FILE" ]; then
-  TURSO_URL=$(grep -E "^TURSO_DATABASE_URL=" "$ENV_FILE" | head -1 | cut -d= -f2-)
-  TURSO_TOKEN=$(grep -E "^TURSO_AUTH_TOKEN=" "$ENV_FILE" | head -1 | cut -d= -f2-)
+  echo "[pre-push] Phase 2: 本番スキーマ drift (advisory)"
+  TURSO_URL=$(grep -E "^TURSO_DATABASE_URL=" "$ROOT/.env.local" | head -1 | cut -d= -f2-)
+  TURSO_TOKEN=$(grep -E "^TURSO_AUTH_TOKEN=" "$ROOT/.env.local" | head -1 | cut -d= -f2-)
   if [ -n "$TURSO_URL" ] && [ -n "$TURSO_TOKEN" ]; then
-    TURSO_DATABASE_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" \
-      scripts/check-prod-schema.sh
+    if ! TURSO_DATABASE_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" bash scripts/check-prod-schema.sh; then
+      printf '\n[warn] 本番スキーマに drift の可能性があります。\n'
+      printf '       デプロイ前に `pnpm exec drizzle-kit push` を検討してください。\n'
+      printf '       ネットワーク/認証に依存するため push はブロックしません。\n\n'
+    fi
   fi
 fi
+
+echo ""
+echo "[pre-push] すべてのゲートを通過しました。"
+exit 0
