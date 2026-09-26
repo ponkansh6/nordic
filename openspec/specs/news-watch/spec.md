@@ -6,12 +6,12 @@ Nordic は北欧デザイン、暮らし、美容に関する記事を定期取�
 
 取得元は次の2つに限定する。
 
-| ソース                               | フィード                                 | 記事一覧のフォールバック                              |
-| ------------------------------------ | ---------------------------------------- | ----------------------------------------------------- |
-| Finnish Design Shop · Design Stories | `https://www.design-stories.com/feed/`   | `https://www.finnishdesignshop.com/en/design-stories` |
-| Lumene                               | `https://www.lumene.com/blogs/news.atom` | `https://www.lumene.com/blogs/news`                   |
+| ソース                               | フィード                                   | 記事一覧のフォールバック                              |
+| ------------------------------------ | ------------------------------------------ | ----------------------------------------------------- |
+| Finnish Design Shop · Design Stories | 公開フィード確認できず（一覧ページを使用） | `https://www.finnishdesignshop.com/en/design-stories` |
+| Lumene                               | `https://www.lumene.com/blogs/news.atom`   | `https://www.lumene.com/blogs/news`                   |
 
-Good News from Finland は更新終了のため対象外とする。RSS/Atom を優先し、利用できない場合は各公式サイトの一覧ページから最新記事を探す。抜粋が不足している場合は、許可された同一サイトの記事ページから要約用テキストだけを取得する。取得ページの `robots.txt` に従う。
+Good News from Finland は更新終了のため対象外とする。公開が確認できた RSS/Atom を優先し、ない場合や利用できない場合は各公式サイトの一覧ページから最新記事を探す。抜粋が不足している場合は、許可された同一サイトの記事ページから要約用テキストだけを取得する。`robots.txt` の 4xx 応答は RFC 9309 の unavailable として扱って一覧取得を試す。5xx、接続障害、TLS エラーでは取得を停止し、記事ページ自体の拒否応答も保存しない。
 
 ## 取得と永続化
 

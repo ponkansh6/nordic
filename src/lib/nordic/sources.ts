@@ -5,7 +5,7 @@ export interface NordicSourceConfig {
   id: string;
   name: string;
   siteUrl: string;
-  feedUrl: string;
+  feedUrl: string | null;
   articlePathPrefix: string;
   latestSectionHeading?: string;
 }
@@ -15,7 +15,7 @@ export const NORDIC_SOURCES: readonly NordicSourceConfig[] = [
     id: "finnish-design-shop",
     name: "Finnish Design Shop · Design Stories",
     siteUrl: "https://www.finnishdesignshop.com/en/design-stories",
-    feedUrl: "https://www.design-stories.com/feed/",
+    feedUrl: null,
     articlePathPrefix: "/en/design-stories/",
     latestSectionHeading: "Latest stories",
   },
@@ -124,9 +124,23 @@ async function getRobotsPolicy(origin: string): Promise<RobotsPolicy | null> {
         redirect: "follow",
       });
       if (response.status === 404) return { rules: [] };
-      if (!response.ok) return null;
+      if (response.status >= 400 && response.status < 500) {
+        // RFC 9309 §2.3.1.3 treats 4xx robots.txt responses as unavailable.
+        console.warn(
+          `[nordic] robots.txt returned HTTP ${response.status}; treating it as unavailable for ${origin}`,
+        );
+        return { rules: [] };
+      }
+      if (!response.ok) {
+        console.warn(`[nordic] robots.txt returned HTTP ${response.status}; denying ${origin}`);
+        return null;
+      }
       return parseRobotsPolicy(await response.text());
-    } catch {
+    } catch (error) {
+      console.warn(
+        `[nordic] robots.txt request failed for ${origin}:`,
+        error instanceof Error ? error.name : "UnknownError",
+      );
       return null;
     }
   })();
@@ -452,14 +466,17 @@ export async function fetchLatestFromSource(
   limit = 20,
 ): Promise<NordicCandidate[]> {
   let feedText: string | null = null;
-  if (await isAllowed(source.feedUrl)) feedText = await fetchText(source.feedUrl);
+  if (source.feedUrl && (await isAllowed(source.feedUrl)))
+    feedText = await fetchText(source.feedUrl);
   const fromFeed = (feedText ? feedEntries(feedText) : [])
     .map((entry) => candidateFromFeed(entry, source))
     .filter((candidate): candidate is NordicCandidate => candidate !== null);
   if (fromFeed.length > 0) return enrichFromArticlePages(fromFeed.slice(0, limit), source);
 
   if (!(await isAllowed(source.siteUrl))) {
-    throw new Error(`${source.name}: robots.txt does not allow the configured page`);
+    throw new Error(
+      `${source.name}: robots.txt could not be read or disallows the configured page`,
+    );
   }
   const html = await fetchText(source.siteUrl, HTML_FALLBACK_TIMEOUT_MS);
   if (!html) throw new Error(`${source.name}: RSS/Atom and article listing were unavailable`);

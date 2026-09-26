@@ -138,7 +138,39 @@ describe("Nordic source adapters", () => {
       feedUrl: "https://robots-error.test/feed.xml",
     };
     fetchMock.mockRejectedValue(new Error("robots unreachable"));
-    await expect(fetchLatestFromSource(blocked)).rejects.toThrow("robots.txt does not allow");
+    await expect(fetchLatestFromSource(blocked)).rejects.toThrow(
+      "robots.txt could not be read or disallows",
+    );
+  });
+
+  it("treats a robots 4xx response as unavailable and falls back to the article listing", async () => {
+    const listingOnlySource: NordicSourceConfig = {
+      ...source,
+      feedUrl: null,
+    };
+    const description = "A detailed article summary about Nordic design and materials. ".repeat(3);
+    fetchMock.mockImplementation(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith("/robots.txt")) return new Response("forbidden", { status: 403 });
+      if (url.endsWith("/stories")) {
+        return new Response(
+          `<h2>Latest stories</h2><p>${description}</p><time datetime="2026-09-20T00:00:00Z"></time><a href="/stories/latest">A latest Nordic design story</a>`,
+          { status: 200 },
+        );
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+
+    const results = await fetchLatestFromSource(listingOnlySource);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      title: "A latest Nordic design story",
+      url: "https://source.test/stories/latest",
+    });
+    expect(console.warn).toHaveBeenCalledWith(
+      "[nordic] robots.txt returned HTTP 403; treating it as unavailable for https://source.test",
+    );
   });
 
   it("falls back cleanly when the XML parser throws", async () => {
@@ -250,7 +282,9 @@ describe("Nordic source adapters", () => {
         return new Response("User-agent: NordicArticleCollector\nDisallow: /", { status: 200 });
       throw new Error(`should not request ${url}`);
     });
-    await expect(fetchLatestFromSource(source)).rejects.toThrow("robots.txt does not allow");
+    await expect(fetchLatestFromSource(source)).rejects.toThrow(
+      "robots.txt could not be read or disallows",
+    );
 
     const otherSource = {
       ...source,
@@ -258,7 +292,9 @@ describe("Nordic source adapters", () => {
       feedUrl: "https://blocked.test/feed.xml",
     };
     fetchMock.mockImplementation(async () => new Response("forbidden", { status: 503 }));
-    await expect(fetchLatestFromSource(otherSource)).rejects.toThrow("robots.txt does not allow");
+    await expect(fetchLatestFromSource(otherSource)).rejects.toThrow(
+      "robots.txt could not be read or disallows",
+    );
   });
 
   it("falls back after a failed feed request and reports unavailable listings", async () => {
@@ -292,11 +328,16 @@ describe("Nordic source adapters", () => {
     await expect(fetchLatestFromSource(emptySource)).rejects.toThrow("no article links found");
   });
 
-  it("exports the two configured feeds", () => {
+  it("exports the two configured sources and only uses verified feeds", () => {
     expect(sources.NORDIC_SOURCES.map((item) => item.id)).toEqual([
       "finnish-design-shop",
       "lumene",
     ]);
-    expect(sources.NORDIC_SOURCES.every((item) => item.feedUrl.startsWith("https://"))).toBe(true);
+    expect(sources.NORDIC_SOURCES.find((item) => item.id === "finnish-design-shop")?.feedUrl).toBe(
+      null,
+    );
+    expect(sources.NORDIC_SOURCES.find((item) => item.id === "lumene")?.feedUrl).toBe(
+      "https://www.lumene.com/blogs/news.atom",
+    );
   });
 });
