@@ -10,8 +10,8 @@ const mockArticles: Article[] = [
     title: "テスト記事 1",
     url: "https://example.com/1",
     publishedAt: "2026-03-30T00:00:00Z",
-    sourceName: "Finnish Design Shop",
-    sourceId: "finnish-design-shop",
+    sourceName: "Dezeen · Finland",
+    sourceId: "dezeen-finland",
     summary: "これは要約1です。",
     nordicRelevance: 8.0,
     recency: 7.0,
@@ -38,7 +38,7 @@ describe("ArticleList", () => {
     render(<ArticleList articles={mockArticles} />);
 
     expect(screen.getByText("テスト記事 1")).toBeInTheDocument();
-    expect(screen.getByText("Finnish Design Shop")).toBeInTheDocument();
+    expect(screen.getByText("Dezeen · Finland")).toBeInTheDocument();
     expect(screen.getByText("8.0")).toBeInTheDocument();
     expect(screen.getByText("これは要約1です。")).toBeInTheDocument();
   });

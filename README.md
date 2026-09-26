@@ -1,6 +1,6 @@
 # Nordic
 
-Finnish Design Shop の Design Stories と Lumene の最新記事を集約し、日本語の要約と北欧デザインとの関連性スコアを付けて読む Next.js アプリです。記事の収集と評価には Google Gemini API、永続化には Turso（libSQL）を使います。
+Dezeen Finland と Lumene の最新記事を集約し、日本語の要約と北欧デザインとの関連性スコアを付けて読む Next.js アプリです。記事の収集と評価には Google Gemini API、永続化には Turso（libSQL）を使います。
 
 ## 開発環境
 

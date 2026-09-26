@@ -22,7 +22,7 @@ describe("Nordic article data access", () => {
 
     const urls = Array.from({ length: 201 }, (_, index) => `https://nordic.test/story/${index}`);
     await db.insert(nordicArticles).values({
-      sourceId: "finnish-design-shop",
+      sourceId: "dezeen-finland",
       url: urls[200]!,
       title: "Chunk boundary article",
       publishedAt: "2026-09-25T00:00:00.000Z",
@@ -36,8 +36,8 @@ describe("Nordic article data access", () => {
     const candidates = [
       {
         candidate: {
-          sourceId: "finnish-design-shop",
-          sourceName: "Finnish Design Shop · Design Stories",
+          sourceId: "dezeen-finland",
+          sourceName: "Dezeen · Finland",
           url: unique,
           title: "High score",
           description: "Description",
@@ -64,8 +64,8 @@ describe("Nordic article data access", () => {
       },
       {
         candidate: {
-          sourceId: "finnish-design-shop",
-          sourceName: "Finnish Design Shop · Design Stories",
+          sourceId: "dezeen-finland",
+          sourceName: "Dezeen · Finland",
           url: unique,
           title: "Duplicate",
           description: null,
@@ -86,7 +86,7 @@ describe("Nordic article data access", () => {
     const rows = await getNordicArticlesCached();
     expect(rows.find((row) => row.url === unique)).toMatchObject({
       title: "High score",
-      sourceName: "Finnish Design Shop · Design Stories",
+      sourceName: "Dezeen · Finland",
       summary: score.summary,
       nordicRelevance: 8,
       recency: 10,

@@ -329,13 +329,10 @@ describe("Nordic source adapters", () => {
   });
 
   it("exports the two configured sources and only uses verified feeds", () => {
-    expect(sources.NORDIC_SOURCES.map((item) => item.id)).toEqual([
-      "finnish-design-shop",
-      "lumene",
-    ]);
-    expect(sources.NORDIC_SOURCES.find((item) => item.id === "finnish-design-shop")?.feedUrl).toBe(
-      null,
-    );
+    expect(sources.NORDIC_SOURCES.map((item) => item.id)).toEqual(["dezeen-finland", "lumene"]);
+    const dezeen = sources.NORDIC_SOURCES.find((item) => item.id === "dezeen-finland");
+    expect(dezeen?.siteUrl).toBe("https://www.dezeen.com/tag/finland/");
+    expect(dezeen?.feedUrl).toBe("https://www.dezeen.com/tag/finland/feed/");
     expect(sources.NORDIC_SOURCES.find((item) => item.id === "lumene")?.feedUrl).toBe(
       "https://www.lumene.com/blogs/news.atom",
     );

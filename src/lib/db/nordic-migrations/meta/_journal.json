@@ -15,6 +15,13 @@
       "when": 1790438356082,
       "tag": "0001_nordic_finnish_design_shop_feed_unavailable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790464635394,
+      "tag": "0002_nordic_replace_unavailable_finnish_design_shop",
+      "breakpoints": true
     }
   ]
 }

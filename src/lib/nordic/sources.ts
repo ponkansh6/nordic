@@ -7,17 +7,18 @@ export interface NordicSourceConfig {
   siteUrl: string;
   feedUrl: string | null;
   articlePathPrefix: string;
+  articlePathPattern?: RegExp;
   latestSectionHeading?: string;
 }
 
 export const NORDIC_SOURCES: readonly NordicSourceConfig[] = [
   {
-    id: "finnish-design-shop",
-    name: "Finnish Design Shop · Design Stories",
-    siteUrl: "https://www.finnishdesignshop.com/en/design-stories",
-    feedUrl: null,
-    articlePathPrefix: "/en/design-stories/",
-    latestSectionHeading: "Latest stories",
+    id: "dezeen-finland",
+    name: "Dezeen · Finland",
+    siteUrl: "https://www.dezeen.com/tag/finland/",
+    feedUrl: "https://www.dezeen.com/tag/finland/feed/",
+    articlePathPrefix: "/",
+    articlePathPattern: /^\/\d{4}\/\d{2}\/\d{2}\//,
   },
   {
     id: "lumene",
@@ -435,8 +436,14 @@ function htmlCandidates(html: string, source: NordicSourceConfig): NordicCandida
     const title = plainText(match[2] ?? "");
     if (!href || title.length < 8) continue;
     const url = normalizeUrl(decodeEntities(href), source.siteUrl);
-    if (!url || !new URL(url).pathname.startsWith(source.articlePathPrefix)) continue;
-    const path = new URL(url).pathname.replace(/\/$/, "");
+    if (!url) continue;
+    const urlPath = new URL(url).pathname;
+    if (
+      !urlPath.startsWith(source.articlePathPrefix) ||
+      (source.articlePathPattern && !source.articlePathPattern.test(urlPath))
+    )
+      continue;
+    const path = urlPath.replace(/\/$/, "");
     if (path === source.articlePathPrefix.replace(/\/$/, "") || seen.has(url)) continue;
     seen.add(url);
 

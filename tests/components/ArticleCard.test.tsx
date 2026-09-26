@@ -8,8 +8,8 @@ const baseArticle = {
   id: 1,
   title: "テストカード",
   url: "https://example.com/story",
-  sourceName: "Finnish Design Shop",
-  sourceId: "finnish-design-shop",
+  sourceName: "Dezeen · Finland",
+  sourceId: "dezeen-finland",
   publishedAt: "2026-03-30T00:00:00Z",
   summary: "北欧の素材と家具の背景を紹介する記事です。",
   nordicRelevance: 8,
@@ -22,7 +22,7 @@ describe("ArticleCard", () => {
   it("renders the original title, source, and Japanese summary", () => {
     render(<ArticleCard {...baseArticle} />);
     expect(screen.getByText("テストカード")).toBeInTheDocument();
-    expect(screen.getByText("Finnish Design Shop")).toBeInTheDocument();
+    expect(screen.getByText("Dezeen · Finland")).toBeInTheDocument();
     expect(screen.getByText(baseArticle.summary)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "テストカード" })).toHaveAttribute(
       "href",
