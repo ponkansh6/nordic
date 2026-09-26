@@ -5,3 +5,8 @@ allowBuilds:
 
 overrides:
   postcss@<8.5.10: ^8.5.10
+  fast-uri@<3.1.6: ^3.1.6
+  hono@<4.13.5: ^4.13.5
+  js-yaml@<4.3.2: ^4.3.2
+  qs@<6.16.0: ^6.16.0
+  sharp@<0.35.4: ^0.35.4

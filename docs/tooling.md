@@ -1,39 +1,26 @@
-# ツール使用詳細
+# 開発ツール
 
-AGENTS.md の「ツール使用に関するガイドライン」の詳細版。
+## Node.js と pnpm
 
-## pnpm
+- Node.js 24.x を使う。正確な対応範囲は `package.json` の `engines.node` を参照。
+- pnpm 11.9.x を使う。プロジェクトで指定されたバージョンは `package.json` の `packageManager` を参照。
+- 依存の追加・更新は pnpm で行い、`pnpm-lock.yaml` を `package.json` と同期する。`npm`、`npx`、`bun` でインストールや実行をしない。
+- `pnpm-workspace.yaml` の `allowBuilds` と `overrides` は依存のビルド許可と脆弱性修正を管理するため、意図せず削除しない。
 
-- `npx` や `npm` を利用せず、`pnpm exec` や `pnpm` を使用する。
+## Git Hooks
 
-## sudo（非対話環境）
+- Husky の pre-commit は整形、staged ファイルの秘密情報検査、関連テスト、静的解析、型チェックを行う。
+- pre-push は lockfile、Lint、仕様書参照、整形、依存監査を確認する。push 差分に応じて coverage とスモークテストも実行する。
+- warning / error の意味と対処手順は [docs/git-hooks.md](git-hooks.md) を参照。
+- フックを `--no-verify` や `HUSKY=0` で迂回しない。
 
-- 非対話環境のため `sudo` は直接使えない。代わりに `lxqt-sudo` で GUI パスワードポップアップを raise する。使用例: `lxqt-sudo <command>`. チェーンする場合は一時スクリプトにまとめて渡す。
+## スモークテスト（`scripts/smoke-test.sh`）
 
-## `rtk` CLI プロキシ
+- 実行: `bash scripts/smoke-test.sh`。pre-push ではアプリ、依存、ビルド設定、静的アセット、テストスクリプトの変更時に実行する。
+- Next.js の production build とサーバー起動後、トップページが描画され、RSC エラーや cookie 書き込みエラーがないことを確認する。
+- `SMOKE_PORT` の既定値は 3100。ポートが使用中なら `ss -tlnp` で確認し、残っている該当サーバーを終了して再実行する。
+- テストスクリプトはサーバーを独立したプロセスグループで起動し、終了時に後始末する。
 
-この環境では `rtk` というCLIプロキシが `/home/shunki/.local/bin/rtk` にインストールされている。`rtk` はコマンド出力をLLM向けにフィルタリング・要約するラッパーであり、以下の挙動に注意すること。
+## CI（`.github/workflows/ci.yml`）
 
-- **`rtk <command>` は出力をトークン最適化する**: ビルドログやテスト出力が自動的に短縮・グループ化される。エラーの詳細や警告の全文が必要な場合は生出力を使うこと。
-- **生出力が必要な場合**: `rtk run <command>` を使用する（フィルタリングなし、素の出力）。
-  - 例: `rtk run pnpm exec next build`（Next.jsビルドの完全なログを取得）
-  - 例: `rtk run pnpm exec vitest run`（テストの完全な出力を取得）
-- **未知のツール・コマンドで出力が期待と異なる場合**: まずそのツールの仕様を調査すること。`rtk` 自体のヘルプは `rtk --help` で確認可能。繰り返し同じコマンドを再実行せず、`@explorer` や `@librarian` に委譲して仕様を確認してから使用する。
-- **`rtk` の主要サブコマンド**:
-  - `rtk run <cmd>`: 生実行（フィルタリングなし）
-  - `rtk proxy <cmd>`: フィルタリングなし＋使用状況追跡
-  - `rtk pipe`: 標準入力から読み取りフィルタリング
-  - `rtk next` / `rtk vitest` / `rtk git` など: 各コマンドのラッパー（出力最適化あり）
-
-## スモークテスト（scripts/smoke-test.sh）
-
-- `pnpm build && pnpm start` 後に `/` を curl し、RSC レンダリングエラー（cookie 書き込み等）を検出する。
-- 実行: `bash scripts/smoke-test.sh`（pre-push で `src/` 変更時に自動実行）
-- 判定は HTTP 200 ではなく、本文に `E{"digest"` が無いこと・ログに `Cookies can only be modified` が無いこと・`News Watch` 見出しが描画されること。
-- ポート占有の事前チェック: 起動前に `ss -tlnp` で `SMOKE_PORT`（既定 3100）の LISTEN を検出したら即座に失敗する。`pnpm start` は `next-server` を子プロセスとして生成するため、過去の実行で孤児化したサーバーが残っていると**古いビルドに対して検証して偽の失敗**（`page did not render`）が出る。`lsof -i :3100` で確認し、`pkill -f next-server` で掃除すること。
-- 孤児プロセスの防止: サーバーは `setsid` で新規プロセスグループとして起動し、終了時（trap）にプロセスグループ単位（`kill -- -$PID`）で kill する。`next-server` が孤児として残りポートを占有することを防ぐ。
-
-## CI（.github/workflows/ci.yml）
-
-- GitHub Actions で lint / type-check / vitest / カバレッジ Tier / spec 参照 / スモークテストを実行。
-- フックは `--no-verify` で迂回できるため、CI が非迂回の検査層となる。
+GitHub Actions は Node.js 24 を使い、依存インストール、静的解析、型チェック、テストと coverage tier、仕様書参照、依存監査、スモークテストを実行する。push 前フックの詳細は `docs/git-hooks.md` を参照。

@@ -1,53 +1,42 @@
-# Git Hooks 対処ルール詳細
+# Git Hooks 対処ルール
 
-AGENTS.md の「Git Hooks の対処ルール」の詳細版。コミット / push 時にフックの warning や error が発生した場合は本ファイルを参照する。`--no-verify` / `HUSKY=0` での bypass は禁止。
+コミット / push 時にフックの warning や error が発生した場合の対処方法。フックは Husky で有効化される。`--no-verify` や `HUSKY=0` で迂回しない。
 
-## pre-push warning: `src/ files changed but tests/ was NOT updated`
+## pre-commit
 
-- **発生条件**: `src/` 配下のファイルを変更してコミットし、push したときに、対応する `tests/` 配下のテストファイルが変更・追加されていない場合に出力される。
-- **対処**: 変更内容に応じて以下のいずれかを行う:
-  - **新規モジュールを追加した場合**: `tests/` に対応するユニットテストを作成する（例: `src/lib/news/xtech.ts` → `tests/news/xtech.test.ts`）
-  - **既存モジュールに変更を加えた場合**: 既存テストケースを確認し、必要に応じてテストを追加・更新する
-  - **テスト不要と判断した場合**: 該当するテストファイルにテストケースを追加するか、既存テストが変更をカバーしていることを確認する（例: 設定変更のみ、型定義のみの変更など）
-- **注意**: warning が表示されても push 自体は成功するが、テスト欠落のシグナルとして必ず対処すること。push 完了後に改めてテストを追加し、別コミットとして push してもよい。
+次の順で実行する。
 
-## pre-push のブロックチェック詳細
+1. `lint-staged` — staged ファイルを整形し、TypeScript / TSX は関連テストも実行する。対象ファイルには `secretlint` も実行する。
+2. `oxlint --nextjs-plugin --react-plugin --react-perf-plugin` — リポジトリ全体を静的解析する。
+3. `tsgo --noEmit` — リポジトリ全体を型チェックする。
+4. `scripts/check-spec-update.sh` — `src/` / `tests/` の変更に対して仕様書の更新漏れを warning で知らせる。
 
-いずれかが error で終了すると push がブロックされる。
+warning は内容を確認し、必要なら `openspec/specs/news-watch/spec.md` を更新する。静的解析、型チェック、関連テスト、秘密情報検査が失敗した場合は原因を修正してから再コミットする。
 
-1. **`scripts/check-spec-refs.sh`** — spec.md 内の `src/` / `tests/` ファイル参照が実在するか検証。腐敗した参照（stale reference）があると失敗する。
-   - 対処: spec.md の参照と実際のファイルパスを同期させる。
-2. **`pnpm exec vitest run tests/db/schema-consistency.test.ts`** — ローカル in-memory DB でのスキーマ整合性テスト。
-   - 対処: `src/lib/db/schema.ts` とマイグレーション / テストの同期を確認する。
-3. **カバレッジ段階検証**（`src/` 変更時のみ実行・約30秒）— `vitest run --coverage` 後に `node scripts/check-coverage-tiers.mjs` を実行し、spec.md §7.1 のティア別目標（Tier 1: 95% 〜 Tier 6: 65%）を達成しているか検証する。
-   - 対処: 未達のモジュールにテストを追加する。検証コマンド: `pnpm exec vitest run --coverage && node scripts/check-coverage-tiers.mjs`
-4. **`pnpm exec eslint src/`** — Server Action 境界の静的検査（`@sbougerel/next-use-client-boundary/props-must-be-serializable` が RSC→Client 境界の非シリアライズ可能 props を検出）。
-   - 対処: エラーを修正するか、意図的な場合は eslint-disable コメントに理由を添える。
-5. **`bash scripts/smoke-test.sh`**（`src/` 変更時のみ・約30秒）— `pnpm build && pnpm start` 後に `/` を curl し、本文に RSC エラーダイジェスト（`E{"digest"`）や `Cookies can only be modified` が無いことを検証。HTTP 200 は成功判定に使わない（壊れた状態でも 200 が返るため）。
-   - 対処: ビルドエラーや RSC レンダリングエラーを修正する。
-   - 注意: `port ... already in use` で失敗した場合は、前回実行から孤児化した `next-server` が `SMOKE_PORT`（既定 3100）を占有している。`lsof -i :3100` で確認し `pkill -f next-server` で掃除してから再実行する（詳細は `docs/tooling.md` のスモークテスト節を参照）。
-6. **本番スキーマ drift 検出**（`.env.local` に Turso 認証情報がある場合のみ実行）— `scripts/check-prod-schema.sh` が本番 Turso DB と `src/lib/db/schema.ts` のスキーマを比較し、未適用のマイグレーションを検出する。
-   - 対処: `pnpm exec drizzle-kit push` で本番スキーマを最新化する。
+## pre-push
 
-## pre-commit warning: `spec.md` 未更新
+未コミットの tracked 変更と `src/` / `tests/` の未追跡ファイルがある場合は、最初に push を止める。その他の未追跡ファイルは warning を出す。検査対象は push 差分に基づいて決まる。
 
-- **発生条件**: `src/` または `tests/` 配下を変更したコミットを作成しようとしたとき、`openspec/specs/news-watch/spec.md` が更新されていない場合に出力される。
-- **対処**: 変更内容を spec.md に反映する。具体的には以下を確認する:
-  - 新規モジュールを追加した場合 → `Technology Stack` のソース一覧に追記
-  - 既存モジュールに変更を加えた場合 → 該当する仕様・データモデル・アーキテクチャ記述を最新化
-  - 環境変数を追加/削除した場合 → 環境変数のセクションを更新
-- spec.md はプロジェクトの設計意図を文書化する唯一の仕様書であり、変更との乖離は保守性を損なうため、必ず同期すること。
+常時、次の検査を並列レーンで実行する。
 
-## pre-commit の実行内容と error 時の対処
+- **レーン A:** `scripts/check-lockfile-sync.sh`、`eslint src/`、`scripts/check-spec-refs.sh`、`oxfmt --check .`、`scripts/check-security.sh`
+- **レーン B:** 依存関係、`src/`、`tests/`、型設定、coverage 設定などを変更した場合に `vitest run --coverage` と coverage tier 検査
 
-pre-commit は以下を順に実行する:
+`src/`、静的アセット、Next.js / TypeScript 設定、依存関係、smoke test を変更した場合は `scripts/smoke-test.sh` も実行する。`src/` の変更に対して `tests/` の変更がない場合は warning が出るため、既存テストで十分に検証されているか確認する。
 
-1. `pnpm run lint:fast` — oxlint による静的解析
-2. `pnpm exec tsgo --noEmit` — TypeScript 型チェック
-3. `pnpm exec lint-staged` — ステージングファイルへの自動修正・関連テスト実行
-   - `*.{ts,tsx}` → `oxfmt --write` + `vitest related --passWithNoTests`（関連テストが失敗すると error）
-   - `*.{js,jsx,json,md,mjs,cjs}` → `oxfmt --write`
-4. `bash scripts/check-spec-update.sh` — spec.md 未更新の warning（ブロックしない）
+### 失敗時の対処
 
-- **warning 全般**: lint-staged が oxfmt の自動修正を行った場合、修正ログや警告が出力されることがある。これらは原則自動対処されるため、手動介入は不要。
-- **error 時**: 1〜3 のいずれかが **error** で終了した場合はコミットがブロックされる。エラーメッセージを読み、原因を特定して修正してから再コミットすること。
+- **lockfile sync:** 依存を変更したら `pnpm install` を実行し、`package.json`、`pnpm-workspace.yaml` を変更した場合は `pnpm-lock.yaml` も同期してコミットする。
+- **ESLint / format:** エラーまたは整形差分を修正する。pre-commit の `oxfmt --write` は staged ファイルを対象にする。
+- **spec refs:** `openspec/specs/news-watch/spec.md` の `src/` / `tests/` 参照を実在するパスに合わせる。
+- **security:** 本番依存の High / Critical 脆弱性と secretlint 検出は blocking。依存を更新するか、秘密情報をファイルや Git 履歴から除去する。devDependency の監査結果は warning のみ。
+- **coverage tiers:** `scripts/check-coverage-tiers.mjs` が示す未達モジュールを確認し、担当する既存テストを更新する。
+- **smoke test:** ビルド、サーバー起動、トップページの描画エラーを確認する。`SMOKE_PORT`（既定 3100）が使用中の場合は `ss -tlnp` で確認し、該当プロセスを終了してから再実行する。
+
+### 本番スキーマ drift
+
+`src/lib/db/schema.ts` またはマイグレーションを変更し、`.env.local` に Turso 認証情報がある場合、pre-push は本番スキーマ drift 検出を advisory として実行する。ネットワークや認証に依存するため push は止めない。検出内容を確認し、本番スキーマへの変更は作業指示で明示された場合にのみ適用する。
+
+## 仕様書の更新
+
+機能仕様、データモデル、環境変数、アーキテクチャの正本は `openspec/specs/news-watch/spec.md`。機能やデータアクセスの振る舞いを変更した場合は、同じ変更に仕様書を合わせる。

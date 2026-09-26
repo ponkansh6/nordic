@@ -10,7 +10,12 @@ vi.mock("@/lib/db", async (importOriginal) => {
   const schemaMod = await import("@/lib/db/schema");
   const client = createClient({ url: ":memory:" });
   const db = drizzle({ client, schema: schemaMod });
-  return { ...actual, db, __client: client };
+  return {
+    ...actual,
+    db,
+    __client: client,
+    getLatestPreferenceProfile: vi.fn().mockResolvedValue(null),
+  };
 });
 
 const mockScoreArticles = vi.fn();
@@ -23,6 +28,7 @@ const mockScoreArticle = vi.fn(async (article: any) => ({
 vi.mock("@/lib/llm", () => ({
   scoreArticles: (...args: any[]) => mockScoreArticles(...args),
   scoreArticle: (article: any) => mockScoreArticle(article),
+  buildPreferencePromptSection: () => "",
 }));
 
 import * as dbMod from "@/lib/db";
@@ -211,9 +217,9 @@ describe("xtech 20件取得→0件スコアリングの完全再現テスト", (
 
     mockScoreArticles.mockImplementation(
       async (items: { title: string; description: string | null }[]) =>
-        items.map((item, i) => ({
+        items.map((item) => ({
           summary: `要約: ${item.title.slice(0, 20)}`,
-          usefulness: 6 + (i % 4),
+          usefulness: 9,
           ntt_relevance: 8,
           reason: "日経クロステックのIT記事として有用",
         })),
