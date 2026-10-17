@@ -239,7 +239,13 @@ echo "[pre-push] Phase 1: レーン A (preflight/format/security/smoke) / レー
   # push 時点でリポジトリ全体が整形済みとは限らない（--no-verify で
   # pre-commit をスキップされた場合など）。ここで検査してブロックする。
   oxfmt --check .
-  bash scripts/check-security.sh
+  # 本番依存は blocking、開発依存は advisory として独立判定する。
+  # 片方が失敗しても残りの判定と secretlint を実行して結果を揃える。
+  SECURITY_FAILED=0
+  bash scripts/check-security-production.sh || SECURITY_FAILED=1
+  bash scripts/check-security-development.sh || SECURITY_FAILED=1
+  bash scripts/check-secrets.sh || SECURITY_FAILED=1
+  [ "$SECURITY_FAILED" -eq 0 ]
   if [ "$NEED_SMOKE" = "1" ]; then
     bash scripts/smoke-test.sh
   fi
@@ -255,7 +261,7 @@ if [ "$NEED_TEST" = "1" ]; then
 fi
 
 FAIL=0
-LANE_A_LABEL="lane A (lockfile-sync/eslint/spec-refs/format-check/security"
+LANE_A_LABEL="lane A (lockfile-sync/eslint/spec-refs/format-check/security-prod+dev/secrets"
 if [ "$NEED_SMOKE" = "1" ]; then LANE_A_LABEL="${LANE_A_LABEL}/smoke"; fi
 LANE_A_LABEL="${LANE_A_LABEL})"
 

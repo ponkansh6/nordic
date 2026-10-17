@@ -12,7 +12,8 @@
 ## Git Hooks
 
 - Husky の pre-commit は整形、staged ファイルの秘密情報検査、関連テスト、静的解析、型チェックを行う。
-- pre-push は lockfile、Lint、仕様書参照、整形、依存監査を確認する。push 差分に応じて coverage とスモークテストも実行する。
+- pre-push は lockfile、Lint、仕様書参照、整形、本番依存監査、開発依存監査、secretlint を確認する。本番依存の High / Critical は blocking、開発依存の監査結果は advisory として分けて表示する。push 差分に応じて coverage とスモークテストも実行する。
+- `pnpm run security-check` は `scripts/check-security-production.sh`、`scripts/check-security-development.sh`、`scripts/check-secrets.sh` をまとめて実行する。CI もこの集約スクリプトを使う。
 - warning / error の意味と対処手順は [docs/git-hooks.md](git-hooks.md) を参照。
 - フックを `--no-verify` や `HUSKY=0` で迂回しない。
 
