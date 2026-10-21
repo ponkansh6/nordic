@@ -2,7 +2,7 @@
 
 ## Node.js と pnpm
 
-- Node.js 24.x を使う。正確な対応範囲は `package.json` の `engines.node` を参照。
+- Node.js 24.22.1 を使う。指定バージョンは `package.json` の `engines.node` を参照。
 - pnpm 11.9.x を使う。プロジェクトで指定されたバージョンは `package.json` の `packageManager` を参照。
 - 依存の追加・更新は pnpm で行い、`pnpm-lock.yaml` を `package.json` と同期する。`npm`、`npx`、`bun` でインストールや実行をしない。
 - `pnpm-workspace.yaml` の `allowBuilds` と `overrides` は依存のビルド許可と脆弱性修正を管理するため、意図せず削除しない。
@@ -26,4 +26,4 @@
 
 ## CI（`.github/workflows/ci.yml`）
 
-GitHub Actions は Node.js 24 を使い、依存インストール、静的解析、型チェック、テストと coverage tier、仕様書参照、依存監査、スモークテストを実行する。push 前フックの詳細は `docs/git-hooks.md` を参照。
+GitHub Actions は Node.js 24.22.1 を使い、依存インストール、静的解析、型チェック、テストと coverage tier、仕様書参照、依存監査、スモークテストを実行する。push 前フックの詳細は `docs/git-hooks.md` を参照。

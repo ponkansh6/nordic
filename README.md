@@ -4,7 +4,7 @@ Dezeen Finland と Lumene の最新記事を集約し、日本語の要約と北
 
 ## 開発環境
 
-- Node.js 24.x
+- Node.js 24.22.1
 - pnpm 11.9 以降（11.x）
 - Turso データベースと Google API キー
 
