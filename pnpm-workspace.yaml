@@ -28,7 +28,8 @@ minimumReleaseAgeExclude:
   - vite@8.3.5
 
 overrides:
-  "@vercel/node@26.0.0>undici": ^6.29.1
+  "@vercel/node@27.0.1>undici": ^6.29.1
+  zod@>=4.0.0 <4.6.6: ^4.6.6
   postcss@<8.5.10: ^8.5.10
   fast-uri@<3.1.6: ^3.1.6
   hono@<4.13.5: ^4.13.5
